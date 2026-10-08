@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Compuerta Radial – Análisis Estructural</title>
+<title>Compuerta radial – Vertedero Ituango</title>
 <style>
 :root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--mut:#667;--ac:#1d5fa8;--bd:#d6dbe3;--ok:#1a7f45;--bad:#c0392b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181f;--fg:#e6e9ee;--card:#1d232d;--mut:#97a1b0;--ac:#6aa9ee;--bd:#323b49;--ok:#4cc27f;--bad:#ff7a69}}
@@ -17,8 +17,8 @@ table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:4px 6px;b
 th{color:var(--mut);font-weight:600}svg{width:100%;height:auto;display:block}.sm{color:var(--mut);font-size:12px}
 .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}
 </style></head><body><main>
-<h1>Compuerta Radial – Simulación</h1>
-<div class="sm">Modelo 2D simplificado (300000092-N-0801 / 0805 / 0901 / 0903). Valores iniciales = valores de referencia.</div>
+<h1>Compuerta radial del vertedero – P.H. Ituango</h1>
+<div class="sm">Modelo 2D simplificado según memorias ATB 300000092-N-0801 / 0805 / 0901 / 0903. Valores iniciales = valores de las memorias.</div>
 <div class="g" style="margin-top:10px">
 <div class="c"><h2>Parámetros</h2>
 <label>Tipo de compuerta</label><select id="tipo"><option value="con">Con solapa (P=255 t)</option><option value="sin">Sin solapa (P=240 t)</option></select>
@@ -27,10 +27,15 @@ th{color:var(--mut);font-weight:600}svg{width:100%;height:auto;display:block}.sm
 <label>Apertura h = <b id="vh"></b> m</label><input type="range" id="h" min="0" max="21.2" step="0.1" value="0">
 <label>Nivel del embalse = <b id="vz"></b> msnm</label><input type="range" id="z" min="400" max="425" step="0.05" value="421.585">
 <label>Coeficiente de fricción en muñones μ</label><input type="number" id="mu" min="0" max="0.5" step="0.01" value="0.15">
+<label>Distancia de la sección desde el muñón, s [m] (a lo largo del brazo)</label><input type="number" id="dist" min="0" max="24" step="0.1" value="4">
 <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="def" checked> Mostrar deformada de los brazos (membrana rígida)</label>
 <label>Amplificación de la deformada (vacío = automática)</label><input type="number" id="amp" min="1" step="10" placeholder="auto">
 <div class="sm" style="margin-top:8px">Hipótesis: γ=1 t/m³ (como en las memorias), ancho 16.5 m, R=26 m, muñón en 410.90 msnm, r=0.35 m, fricción sellos μs=0.8. 1 t = 9.81 kN.</div></div>
 <div class="c"><h2>Esquema (elevación, aguas arriba a la izquierda)</h2><svg id="sv" viewBox="0 0 520 480"></svg></div>
+</div>
+<div class="g" style="margin-top:12px">
+<div class="c ov"><h2>Sección a s = <span id="vs"></span> m del muñón</h2><table id="t4"></table>
+<div class="sm" style="margin-top:6px">Convención: N&gt;0 compresión; ε&gt;0 tracción. M = EI·κ (plano y-y, normal al brazo), con flexión lineal entre el muñón y la membrana. Las fibras extremas están a ±425 mm del eje (sección cajón 850×850×30). ε axial = −N/(E·A); ε flexión = ∓M·(h/2)/(E·J); superior/inferior = cara de mayor/menor cota del brazo. El signo del cortante V es el del eje local normal al brazo. No incluye flexión x-x.</div></div>
 </div>
 <div class="g" style="margin-top:12px">
 <div class="c ov"><h2>Deformaciones (membrana rígida, E=210 GPa)</h2><table id="t3"></table>
@@ -87,21 +92,36 @@ function fem(r){
  const d=[0,0,0];for(let i=2;i>=0;i--){d[i]=(M[i][3]-(i<2?M[i][i+1]*d[i+1]:0)-(i<1?M[i][2]*d[2]:0))/M[i][i]}
  const res=els.map(o=>{const ue=mm3(o.Tm,[[d[0]],[d[1]],[d[2]]]).map(x=>x[0]),dg=[0,0,0,...ue],dl=mm3(o.T6,dg.map(x=>[x])).map(x=>x[0]),f=mm3(o.k,dl.map(x=>[x])).map(x=>x[0]);
   let vmax=0;for(let i=1;i<20;i++){const x=i/20,v=dl[4]*(3*x*x-2*x**3)+dl[5]*o.L*(x**3-x*x);if(Math.abs(v)>Math.abs(vmax))vmax=v}
-  return{...o,dl,N:f[0],Mc:f[2],Me:f[5],ue,vmax}});
+  return{...o,dl,f,N:f[0],Mc:f[2],Me:f[5],ue,vmax}});
  return{d,res,cg}}
+
+function secTable(r){const E=210e6,A=0.0984,J=0.011,hh=0.425,nm=['Superior','Inferior'];
+ const rows={N:[],V:[],M:[],ea:[],ets:[],eti:[],es:[],ei:[]};let sd0=+$('dist').value||0;
+ r.fe.res.forEach((e,i)=>{const sd=Math.min(Math.max(sd0,0),e.L),xi=sd/e.L,ff=e.f,
+  N=ff[0],V=ff[1],M=-ff[2]+ff[1]*sd,ea=-N/(E*A),eb=M*hh/(E*J),
+  eP=-eb,eM=eb,// cara +y (normal local) / cara -y
+  plus=e.c>0,eSup=plus?eP:eM,eInf=plus?eM:eP;
+  rows.N.push(N);rows.V.push(V);rows.M.push(M);rows.ea.push(ea*1e6);rows.ets.push(eSup*1e6);rows.eti.push(eInf*1e6);rows.es.push((ea+eSup)*1e6);rows.ei.push((ea+eInf)*1e6)});
+ $('vs').textContent=f(Math.min(Math.max(sd0,0),r.fe.res[0].L),2);
+ const row=(n,k,u,d)=>`<tr><td>${n}</td><td>${f(rows[k][0],d)}</td><td>${f(rows[k][1],d)}</td><td>${u}</td></tr>`;
+ $('t4').innerHTML=`<tr><th>Magnitud</th><th>Brazo superior</th><th>Brazo inferior</th><th>Unidad</th></tr>`+
+ row('Fuerza axial N (compresión +)','N','kN',0)+row('Fuerza cortante V','V','kN',0)+row('Momento flector M','M','kN·m',0)+
+ row('ε axial (ambas caras)','ea','µε',0)+row('ε por flexión – cara superior','ets','µε',0)+row('ε por flexión – cara inferior','eti','µε',0)+
+ row('ε total – cara superior','es','µε',0)+row('ε total – cara inferior','ei','µε',0)}
 function defo(r,X,Y){
  const fe=r.fe,d=fe.d;let dm=0;const sk=[];
  for(let i=0;i<=20;i++){const a=r.tb+EXT*i/20,x=-R*Math.cos(a),z=R*Math.sin(a),ux=d[0]-d[2]*z,uz=d[1]+d[2]*x;sk.push([x,z,ux,uz]);dm=Math.max(dm,Math.hypot(ux,uz))}
  for(const o of fe.res)dm=Math.max(dm,Math.hypot(o.ue[0],o.ue[1]));
  const user=+$('amp').value,amp=user>0?user:Math.max(1,Math.round(18/(12*Math.max(dm,1e-9))));r.amp=amp;r.dm=dm;
- if(!$('def').checked)return'';
+ let mk='';fe.res.forEach(e=>{const sd=Math.min(Math.max(+$('dist').value||0,0),e.L),x=sd/e.L;mk+=`<circle cx="${X(e.e[0]*x)}" cy="${Y(e.e[1]*x)}" r="5" fill="none" stroke="var(--fg)" stroke-width="2"/>`});
+ if(!$('def').checked)return mk;
  let o='';const P=(x,z,ux=0,uz=0)=>[X(x+ux*amp),Y(z+uz*amp)];
  let d0='',d1='';sk.forEach((p,i)=>{const a=P(p[0],p[1]),b=P(p[0],p[1],p[2],p[3]);d0+=(i?'L':'M')+a[0]+' '+a[1];d1+=(i?'L':'M')+b[0]+' '+b[1]});
  o+=`<path d="${d0}" fill="none" stroke="#999" stroke-width="2" opacity=".6"/><path d="${d1}" fill="none" stroke="#e0368a" stroke-width="2.5" stroke-dasharray="5 3"/>`;
  for(const e of fe.res){let a0='',a1='';for(let i=0;i<=24;i++){const x=i/24,u=e.dl[3]*x,v=e.dl[4]*(3*x*x-2*x**3)+e.dl[5]*e.L*(x**3-x*x),
   px=e.e[0]*x,pz=e.e[1]*x,gx=e.c*u-e.s*v,gz=e.s*u+e.c*v,p0=P(px,pz),p1=P(px,pz,gx,gz);a0+=(i?'L':'M')+p0[0]+' '+p0[1];a1+=(i?'L':'M')+p1[0]+' '+p1[1]}
   o+=`<path d="${a0}" fill="none" stroke="#999" stroke-width="1.5" opacity=".6"/><path d="${a1}" fill="none" stroke="#e0368a" stroke-width="2.5" stroke-dasharray="5 3"/>`}
- return o+`<text x="8" y="452" font-size="11" fill="#e0368a">Deformada ×${f(amp,0)}</text>`}
+ return mk+o+`<text x="8" y="452" font-size="11" fill="#e0368a">Deformada ×${f(amp,0)}</text>`}
 function defTable(r){const fe=r.fe,n=['Superior','Inferior'];let h=`<tr><th>Magnitud</th><th>Valor</th><th>Unidad</th></tr>`;
  const q=(a,b,u,dd=2)=>`<tr><td>${a}</td><td>${f(b,dd)}</td><td>${u}</td></tr>`;
  h+=q('Desplazamiento horizontal de la membrana',fe.d[0]*1000,'mm')+q('Desplazamiento vertical de la membrana',fe.d[1]*1000,'mm')+q('Giro de la membrana',fe.d[2]*1000,'mrad',3);
@@ -136,6 +156,6 @@ function run(){const r=calc();$('vh').textContent=f(+$('h').value,1);$('vz').tex
  q('Tiro por servomotor T',r.T*G,'kN',0)+q('Presión en el servomotor',r.T*G*1000/167133,'MPa (nom. 20)')+q('Dirección del tiro γ (desde vertical)',r.gam,'°')+
  q('Reacción en muñón H',r.H*G,'kN',0)+q('Reacción en muñón V (+ arriba)',r.V*G,'kN',0)+q('Reacción resultante R',r.Rt*G,'kN',0)+q('Ángulo β',r.beta,'°')+
  (r.T<0?'<tr><td colspan=3 class="bad">T&lt;0: la compuerta cierra por peso, el servomotor retiene.</td></tr>':'');
- arms(r);r.fe=fem(r);draw(r);defTable(r)}
-['tipo','sol','mode','h','z','mu','def','amp'].forEach(i=>$(i).addEventListener('input',run));run();
+ arms(r);r.fe=fem(r);draw(r);defTable(r);secTable(r)}
+['tipo','sol','mode','h','z','mu','def','amp','dist'].forEach(i=>$(i).addEventListener('input',run));run();
 </script></main></body></html>
