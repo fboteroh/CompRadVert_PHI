@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Compuerta Radial – Simulador</title>
+<title>Simulador – Compuerta Radial</title>
 <style>
 :root{--bg:#f6f7f9;--fg:#1c2330;--card:#fff;--mut:#667;--ac:#1d5fa8;--bd:#d6dbe3;--ok:#1a7f45;--bad:#c0392b;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181f;--fg:#e6e9ee;--card:#1d232d;--mut:#97a1b0;--ac:#6aa9ee;--bd:#323b49;--ok:#4cc27f;--bad:#ff7a69}}
@@ -27,11 +27,16 @@ th{color:var(--mut);font-weight:600}svg{width:100%;height:auto;display:block}.sm
 <label>Apertura h = <b id="vh"></b> m</label><input type="range" id="h" min="0" max="21.2" step="0.1" value="0">
 <label>Nivel del embalse = <b id="vz"></b> msnm</label><input type="range" id="z" min="400" max="425" step="0.05" value="421.585">
 <label>Coeficiente de fricción en muñones μ</label><input type="number" id="mu" min="0" max="0.5" step="0.01" value="0.15">
+<label>Coeficiente de fricción de sellos laterales μs</label><input type="number" id="mus" min="0" max="2" step="0.05" value="0.8">
 <label>Distancia de la sección desde el muñón, s [m] (a lo largo del brazo)</label><input type="number" id="dist" min="0" max="24" step="0.1" value="4">
 <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="def" checked> Mostrar deformada de los brazos (membrana rígida)</label>
 <label>Amplificación de la deformada (vacío = automática)</label><input type="number" id="amp" min="1" step="10" placeholder="auto">
-<div class="sm" style="margin-top:8px">Hipótesis: γ=1 t/m³ (como en las memorias), ancho 16.5 m, R=26 m, muñón en 410.90 msnm, r=0.35 m, fricción sellos μs=0.8. 1 t = 9.81 kN.</div></div>
+<div class="sm" style="margin-top:8px">Hipótesis: γ=1 t/m³ (ref.), ancho 16.5 m, R=26 m, muñón en 410.90 msnm, r=0.35 m, fricción de sellos μs ajustable (0.8 de ref.; Kh y Kp escalan con μs). 1 t = 9.81 kN.</div></div>
 <div class="c"><h2>Esquema (elevación, aguas arriba a la izquierda)</h2><svg id="sv" viewBox="0 0 520 480"></svg></div>
+</div>
+<div class="g" style="margin-top:12px">
+<div class="c ov"><h2>Sistema hidráulico (N-0808 / N-0906)</h2><table id="t5"></table>
+<div class="sm" style="margin-top:6px">Servomotor de simple efecto Ø520/Ø240 mm, sección anular en tracción 167 133 mm², dos por compuerta. Presión en el cilindro = T/A. En apertura la presión en la bomba suma las pérdidas de carga de la ref.: tuberías 0.714 + unidad electrohidráulica 0.60 + cilindros 0.20 = 1.514 MPa. Bomba A4VSO 40 a 1780 rpm: 56 l/min; motor 25 kW; válvula de máxima presión 20 MPa (presión de diseño 20 MPa, prueba 30 MPa). Potencia = p·Q/(60·0.9). En cierre no actúa la bomba: se informa solo la presión de equilibrio en el cilindro; No se dan las pérdidas de retorno para la compuerta. No se modelan los servos de la solapa.</div></div>
 </div>
 <div class="g" style="margin-top:12px">
 <div class="c ov"><h2>Sección a s = <span id="vs"></span> m del muñón</h2><table id="t4"></table>
@@ -55,7 +60,7 @@ function hydro(w,zw,tb,tt){const te=Math.min(tt,Math.asin(Math.min(zw,R)/R));if(
  const br=zw*(C(tb)-C(te))-R*(te-tb)/2+R*(S(2*te)-S(2*tb))/4;
  return{fh,fv:-w*R*br,ip:R*(zw*(te-tb)+R*(C(te)-C(tb)))}}
 function calc(){
- const tipo=$('tipo').value,abierta=tipo=='con'&&$('sol').value=='a',h=+$('h').value,zw=+$('z').value-ZC,mu=+$('mu').value,s=+$('mode').value;
+ const tipo=$('tipo').value,abierta=tipo=='con'&&$('sol').value=='a',h=+$('h').value,zw=+$('z').value-ZC,mu=+$('mu').value,mus=+$('mus').value,s=+$('mode').value;
  const tb=Math.asin((-10.815+h)/R),D=tb-(-TI);
  let P=240,Rg=19.17,Hg=1.65;if(tipo=='con'){P=255;if(abierta){Rg=19.38;Hg=1.1865}else{Rg=19.402;Hg=1.1281}}
  let Fh,Fv,ip;
@@ -65,7 +70,7 @@ function calc(){
  const Mp=P*Rg*Math.cos(Math.asin(Hg/Rg)-D);
  let Msol=0;if(abierta&&h<3){let i=Math.min(2,Math.floor(h)),u=h-i,a=FH[i],b=FH[i+1];
   Msol=(a[1]+(b[1]-a[1])*u)*(a[2]+(b[2]-a[2])*u)/G*Math.max(0.05,Math.min(zw,10.685)/10.685)}
- const Lc=h<=10?17.1:17.1-(h-10)*5.1/11.2,Mv=2*26.06*(0.0306*ipw+0.077*Lc);
+ const Lc=h<=10?17.1:17.1-(h-10)*5.1/11.2,Mv=2*26.06*(0.0306*ipw+0.077*Lc)*(mus/0.8);
  const ph=Math.asin(8.42/24.05)-D,rx=-24.05*Math.cos(ph),rz=-24.05*Math.sin(ph),dx=-8.7-rx,dz=9.5-rz,dl=Math.hypot(dx,dz),ux=dx/dl,uz=dz/dl;
  const arm=-(rx*uz-rz*ux),K=mu*0.35;let T=200,H=0,V=0,Rt=0;
  for(let i=0;i<80;i++){H=Fh/2+T*ux;V=Fv/2+T*uz-P/2;Rt=Math.hypot(H,V);T=(Mp+Msol+s*(Mv+2*K*Rt))/(2*arm)}
@@ -95,6 +100,15 @@ function fem(r){
   return{...o,dl,f,N:f[0],Mc:f[2],Me:f[5],ue,vmax}});
  return{d,res,cg}}
 
+
+function hydTable(r){const A=167133,pc=r.T*G*1000/A,loss=1.514,pb=pc+loss,Q=56,pot=pb*Q/(60*0.9),t=3356/21.2*(+$('h').value)/Q;
+ const q=(a,b,u,d=1,c='')=>`<tr><td>${a}</td><td class="${c}">${f(b,d)}</td><td>${u}</td></tr>`;
+ let h=`<tr><th>Magnitud</th><th>Valor</th><th>Unidad</th></tr>`+q('Tiro por servomotor T',r.T*G,'kN',0)+q('Presión en el cilindro p = T/A',pc,'MPa',2,pc>20?'bad':'');
+ if(r.s>0)h+=q('Pérdidas de carga (ref., apertura)',loss,'MPa',3)+q('Presión en la bomba / válvula de máx. presión',pb,'MPa',2,pb>20?'bad':'ok')+q('Margen respecto a la presión de diseño (20 MPa)',20-pb,'MPa',2,pb>20?'bad':'ok')+
+  q('Potencia eléctrica requerida (motor 25 kW)',pot,'kW',1,pot>25?'bad':'ok')+q('Tiempo transcurrido desde cierre total a 56 l/min',t,'min',1);
+ else h+='<tr><td colspan=3 class="sm">Cierre: la bomba no interviene; p = T/A es la presión de equilibrio en el cilindro.</td></tr>';
+ if(r.T<0)h+='<tr><td colspan=3 class="bad">T&lt;0: el servomotor no genera presión positiva (cierra por peso).</td></tr>';
+ $('t5').innerHTML=h}
 function secTable(r){const E=210e6,A=0.0984,J=0.011,hh=0.425,nm=['Superior','Inferior'];
  const rows={N:[],V:[],M:[],ea:[],ets:[],eti:[],es:[],ei:[]};let sd0=+$('dist').value||0;
  r.fe.res.forEach((e,i)=>{const sd=Math.min(Math.max(sd0,0),e.L),xi=sd/e.L,ff=e.f,
@@ -153,9 +167,9 @@ function run(){const r=calc();$('vh').textContent=f(+$('h').value,1);$('vz').tex
  $('t1').innerHTML=`<tr><th>Magnitud</th><th>Valor</th><th>Unidad</th></tr>`+
  q('Fuerza hidrostática horizontal Fh (total)',r.Fh*G,'kN',0)+q('Fuerza hidrostática vertical Fv (total)',r.Fv*G,'kN',0)+q('Ángulo α de la resultante',r.alpha,'°')+
  q('Momento resistente peso Mp',r.Mp*G,'kN·m',0)+q('Momento flap hidrodinámico Msol',r.Msol*G,'kN·m',0)+q('Momento sellos laterales Mv',r.Mv*G,'kN·m',0)+q('Fricción muñón Mt (c/u)',r.Mt*G,'kN·m',0)+
- q('Tiro por servomotor T',r.T*G,'kN',0)+q('Presión en el servomotor',r.T*G*1000/167133,'MPa (nom. 20)')+q('Dirección del tiro γ (desde vertical)',r.gam,'°')+
+ q('Tiro por servomotor T',r.T*G,'kN',0)+q('Presión en el servomotor p=T/A',r.T*G*1000/167133,'MPa (nom. 20)',2)+q('Dirección del tiro γ (desde vertical)',r.gam,'°')+
  q('Reacción en muñón H',r.H*G,'kN',0)+q('Reacción en muñón V (+ arriba)',r.V*G,'kN',0)+q('Reacción resultante R',r.Rt*G,'kN',0)+q('Ángulo β',r.beta,'°')+
  (r.T<0?'<tr><td colspan=3 class="bad">T&lt;0: la compuerta cierra por peso, el servomotor retiene.</td></tr>':'');
- arms(r);r.fe=fem(r);draw(r);defTable(r);secTable(r)}
-['tipo','sol','mode','h','z','mu','def','amp','dist'].forEach(i=>$(i).addEventListener('input',run));run();
+ arms(r);r.fe=fem(r);draw(r);defTable(r);secTable(r);hydTable(r)}
+['tipo','sol','mode','h','z','mu','def','amp','dist','mus'].forEach(i=>$(i).addEventListener('input',run));run();
 </script></main></body></html>
